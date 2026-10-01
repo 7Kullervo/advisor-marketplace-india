@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String
+  passwordHash  String
+  role          Role           @default(USER)
+  createdAt     DateTime       @default(now())
+  advisor       Advisor?
+  bookings      Booking[]
+  notifications Notification[]
+  reviews       Review[]
+  savedAdvisors SavedAdvisor[]
+}
+
+model SavedAdvisor {
+  id        String   @id @default(cuid())
+  userId    String
+  advisorId String
+  createdAt DateTime @default(now())
+  advisor   Advisor  @relation(fields: [advisorId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, advisorId])
+}
+
+model Category {
+  id        String      @id @default(cuid())
+  slug      String      @unique
+  name      String
+  icon      String
+  advisors  Advisor[]
+  expertise Expertise[]
+}
+
+model Advisor {
+  id                String         @id @default(cuid())
+  slug              String         @unique
+  userId            String         @unique
+  categoryId        String
+  headline          String
+  bio               String
+  yearsExperience   Int
+  languages         String[]
+  verified          Boolean        @default(false)
+  ratingAvg         Float          @default(0)
+  consultationCount Int            @default(0)
+  category          Category       @relation(fields: [categoryId], references: [id])
+  user              User           @relation(fields: [userId], references: [id])
+  availability      Availability[]
+  bookings          Booking[]
+  payouts           Payout[]
+  savedBy           SavedAdvisor[]
+  services          Service[]
+  expertise         Expertise[]    @relation("AdvisorToExpertise")
+
+  @@index([categoryId])
+}
+
+model Expertise {
+  id         String    @id @default(cuid())
+  name       String
+  categoryId String
+  category   Category  @relation(fields: [categoryId], references: [id])
+  advisors   Advisor[] @relation("AdvisorToExpertise")
+}
+
+model Service {
+  id          String    @id @default(cuid())
+  advisorId   String
+  name        String
+  durationMin Int
+  pricePaise  Int
+  active      Boolean   @default(true)
+  bookings    Booking[]
+  advisor     Advisor   @relation(fields: [advisorId], references: [id])
+}
+
+model Availability {
+  id        String  @id @default(cuid())
+  advisorId String
+  weekday   Int
+  startMin  Int
+  endMin    Int
+  advisor   Advisor @relation(fields: [advisorId], references: [id])
+}
+
+model Booking {
+  id            String        @id @default(cuid())
+  userId        String
+  advisorId     String
+  serviceId     String
+  startsAt      DateTime
+  endsAt        DateTime
+  status        BookingStatus @default(PENDING)
+  meetingUrl    String?
+  jitsiRoomName String?       @unique
+  createdAt     DateTime      @default(now())
+  advisor       Advisor       @relation(fields: [advisorId], references: [id])
+  service       Service       @relation(fields: [serviceId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
+  payment       Payment?
+  review        Review?
+
+  @@index([advisorId, startsAt])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  bookingId         String        @unique
+  razorpayOrderId   String        @unique
+  razorpayPaymentId String?       @unique
+  amountPaise       Int
+  feePaise          Int
+  status            PaymentStatus @default(CREATED)
+  refundId          String?
+  createdAt         DateTime      @default(now())
+  booking           Booking       @relation(fields: [bookingId], references: [id])
+}
+
+model Review {
+  id        String  @id @default(cuid())
+  bookingId String  @unique
+  userId    String
+  rating    Int
+  body      String
+  booking   Booking @relation(fields: [bookingId], references: [id])
+  user      User    @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id       String    @id @default(cuid())
+  userId   String
+  channel  String
+  template String
+  payload  Json
+  sentAt   DateTime?
+  user     User      @relation(fields: [userId], references: [id])
+}
+
+model AdvisorApplication {
+  id           String            @id @default(cuid())
+  email        String
+  name         String
+  categorySlug String
+  data         Json
+  status       ApplicationStatus @default(PENDING)
+  createdAt    DateTime          @default(now())
+}
+
+model Payout {
+  id          String  @id @default(cuid())
+  advisorId   String
+  amountPaise Int
+  status      String  @default("PENDING")
+  advisor     Advisor @relation(fields: [advisorId], references: [id])
+}
+
+enum Role {
+  USER
+  ADVISOR
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  CREATED
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum ApplicationStatus {
+  PENDING
+  REVIEW
+  APPROVED
+  REJECTED
+}
